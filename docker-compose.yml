@@ -1,0 +1,75 @@
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: falco-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_USER: falco
+      MYSQL_PASSWORD: falco_secret
+      MYSQL_DATABASE: falcoelectrec
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u falco -pfalco_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - falco-network
+
+  # Flask Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: falco-backend
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=development
+      - DATABASE_URL=mysql+pymysql://falco:falco_secret@db:3306/falcoelectrec
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - JWT_SECRET_KEY=dev-jwt-secret-change-in-production
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost
+      - DEMO_MODE=true
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: flask run --host=0.0.0.0 --port=5000 --reload
+    networks:
+      - falco-network
+
+  # React Frontend (Development)
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: falco-frontend
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+      - VITE_DEMO_MODE=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - falco-network
+
+volumes:
+  mysql_data:
+  backend_uploads:
+
+networks:
+  falco-network:
+    driver: bridge
