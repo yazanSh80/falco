@@ -396,6 +396,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [isApiAvailable]);
 
   const register = useCallback(async (userData: any) => {
+    // Log the state at the start of registration
+    console.log('[REGISTER] Called with userData:', userData);
+    console.log('[REGISTER] DEMO_MODE:', DEMO_MODE);
+    console.log('[REGISTER] isApiAvailable:', isApiAvailable);
+    console.log('[REGISTER] Will use demo mode:', DEMO_MODE || !isApiAvailable);
+    
     // DEMO MODE: Simulate registration without API call
     if (DEMO_MODE || !isApiAvailable) {
       console.log('[REGISTER] Demo mode - simulating registration:', userData);
@@ -475,7 +481,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     // Real API registration
     try {
+      console.log('[REGISTER] Using real API call to POST /auth/register');
       const response = await authApi.register(userData);
+      console.log('[REGISTER] API response received:', response);
       if (response.access_token && response.user) {
         setCurrentUser({
           id: `U-${response.user.id}`,

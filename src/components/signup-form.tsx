@@ -4,6 +4,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Upload, User, Mail, Phone, MapPin, Lock, Briefcase, Calendar, CheckCircle, ArrowRight, ArrowLeft, AlertCircle, Wrench, Home, Sparkles } from 'lucide-react';
 import { useData } from '../state/DataContext';
+import { DEMO_MODE } from '../config/appMode';
 import AuthShell from '../layouts/AuthShell';
 
 /**
@@ -213,6 +214,19 @@ export default function SignUpForm() {
           <p className="text-sm text-error">{error}</p>
         </div>
       )}
+
+      {/* Debug: Show if using DEMO_MODE or Live API */}
+      <div className="mb-6 p-3 rounded-lg text-xs" style={{
+        backgroundColor: DEMO_MODE ? '#fee2e2' : '#dcfce7',
+        color: DEMO_MODE ? '#991b1b' : '#166534',
+        border: `1px solid ${DEMO_MODE ? '#fca5a5' : '#86efac'}`
+      }}>
+        {DEMO_MODE ? (
+          <>⚠️ DEMO MODE: Data will NOT be saved to database</>
+        ) : (
+          <>✓ LIVE MODE: Data will be saved to database (API: {import.meta.env.VITE_API_URL})</>
+        )}
+      </div>
 
       {/* Step 0: Role Selection (REQUIRED) */}
       {step === 0 && (

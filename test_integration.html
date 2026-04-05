@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integration Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #222;
+            color: #0f0;
+            line-height: 1.6;
+        }
+        .log { margin: 10px 0; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #0ff; }
+        .warning { color: #ff0; }
+        pre {
+            background: #111;
+            padding: 10px;
+            border-left: 3px solid #0f0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Customer & Engineer Creation - Integration Test</h1>
+    <div id="logs"></div>
+
+    <script>
+        const logs = document.getElementById('logs');
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = message;
+            logs.appendChild(div);
+            console.log(message);
+        }
+
+        function logJson(label, obj) {
+            const div = document.createElement('div');
+            div.className = 'log info';
+            const pre = document.createElement('pre');
+            pre.textContent = label + '\n' + JSON.stringify(obj, null, 2);
+            div.appendChild(pre);
+            logs.appendChild(div);
+        }
+
+        async function test() {
+            log('Starting integration test...', 'warning');
+            
+            // Test 1: Check health
+            log('\n=== Test 1: Health Check ===', 'info');
+            try {
+                const health = await fetch('http://localhost:5000/health');
+                log(`Health check: ${health.status}`, health.ok ? 'success' : 'error');
+                const healthData = await health.json();
+                logJson('Health response:', healthData);
+            } catch (e) {
+                log(`Health check error: ${e.message}`, 'error');
+                return;
+            }
+
+            // Test 2: Create customer
+            log('\n=== Test 2: Customer Creation ===', 'info');
+            const customerPayload = {
+                name: 'Integration Test Customer',
+                email: `integcustomer${Date.now()}@test.com`,
+                password: 'TestPass123!',
+                role: 'customer',
+                phone: '0591234567',
+                city: 'Hebron',
+                area: 'City Center'
+            };
+            
+            logJson('Sending payload:', customerPayload);
+            
+            try {
+                const createResp = await fetch('http://localhost:5000/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(customerPayload)
+                });
+                
+                log(`Create customer response: ${createResp.status}`, createResp.ok ? 'success' : 'error');
+                const createData = await createResp.json();
+                logJson('Response:', createData);
+                
+                if (createResp.ok) {
+                    log(`✓ Customer created: ID=${createData.user.id}, Email=${createData.user.email}`, 'success');
+                } else {
+                    log(`✗ Customer creation failed`, 'error');
+                }
+            } catch (e) {
+                log(`Customer creation error: ${e.message}`, 'error');
+            }
+
+            // Test 3: Create engineer
+            log('\n=== Test 3: Engineer Creation ===', 'info');
+            const engineerPayload = {
+                name: 'Integration Test Engineer',
+                email: `integengineer${Date.now()}@test.com`,
+                password: 'TestPass123!',
+                role: 'engineer',
+                phone: '0591234568',
+                city: 'Ramallah',
+                area: 'Downtown',
+                specialization: 'Electrical Wiring',
+                years_exp: 5
+            };
+            
+            logJson('Sending payload:', engineerPayload);
+            
+            try {
+                const createResp = await fetch('http://localhost:5000/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(engineerPayload)
+                });
+                
+                log(`Create engineer response: ${createResp.status}`, createResp.ok ? 'success' : 'error');
+                const createData = await createResp.json();
+                logJson('Response:', createData);
+                
+                if (createResp.ok) {
+                    log(`✓ Engineer created: ID=${createData.user.id}, Email=${createData.user.email}`, 'success');
+                    log(`  - Status: ${createData.user.status}`, 'success');
+                    log(`  - Verification: ${createData.user.verification_status}`, 'success');
+                } else {
+                    log(`✗ Engineer creation failed`, 'error');
+                }
+            } catch (e) {
+                log(`Engineer creation error: ${e.message}`, 'error');
+            }
+
+            log('\n=== Test Complete ===', 'warning');
+        }
+
+        // Run test on load
+        window.addEventListener('load', test);
+    </script>
+</body>
+</html>
