@@ -13,6 +13,7 @@ from marshmallow import ValidationError
 from ..extensions import db, limiter
 from ..models.user import User, UserRole, UserStatus
 from ..models.engineer_profile import EngineerProfile, SubscriptionStatus
+from ..models.engineer_approval_request import EngineerApprovalRequest, ApprovalStatus
 from ..schemas import RegisterSchema, LoginSchema, UpdateProfileSchema
 
 bp = Blueprint('auth', __name__)
@@ -29,109 +30,148 @@ def register():
     
     Role MUST be provided in the request - this is the source of truth.
     """
-    data = request.get_json()
-    
-    # DEBUG LOG (temporary)
-    current_app.logger.info(f"[REGISTER] Received data: {data}")
-    
-    # Validate with marshmallow schema
     try:
-        validated_data = register_schema.load(data)
-    except ValidationError as err:
-        current_app.logger.warning(f"[REGISTER] Validation failed: {err.messages}")
-        # Format validation errors into user-friendly message
-        error_messages = []
-        for field, messages in err.messages.items():
-            if isinstance(messages, list):
-                error_messages.extend([f"{field}: {msg}" for msg in messages])
-            else:
-                error_messages.append(f"{field}: {messages}")
-        friendly_message = error_messages[0] if error_messages else 'Validation failed'
-        return jsonify({
-            'error': 'VALIDATION_ERROR',
-            'message': friendly_message,
-            'details': err.messages
-        }), 400
-    
-    # Role is REQUIRED - this is the source of truth
-    role = validated_data.get('role', '').lower()
-    if role not in ['customer', 'engineer']:
-        return jsonify({'error': 'Role is required. Must be "customer" or "engineer"'}), 400
-    
-    email = validated_data['email'].lower()
-    
-    # Check if email already exists
-    if User.query.filter_by(email=email).first():
-        return jsonify({
-            'error': 'EMAIL_EXISTS',
-            'message': 'This email is already registered',
-            'fields': {'email': 'This email is already in use'}
-        }), 409
-    
-    # DEBUG LOG (temporary)
-    current_app.logger.info(f"[REGISTER] Creating user: email={email}, role={role}")
-    
-    # Create user with role-based status
-    # Customer -> status=active, Engineer -> status=pending
-    user = User(
-        name=validated_data['name'],
-        email=email,
-        phone=validated_data.get('phone'),
-        role=role,
-        city=validated_data.get('city'),
-        area=validated_data.get('area'),
-        status=UserStatus.ACTIVE.value if role == UserRole.CUSTOMER.value else UserStatus.PENDING.value
-    )
-    user.set_password(validated_data['password'])
-    
-    db.session.add(user)
-    db.session.flush()  # Get user ID
-    
-    # If engineer, create profile
-    if role == UserRole.ENGINEER.value:
-        # Additional engineer fields
-        if not validated_data.get('specialization'):
-            db.session.rollback()
-            return jsonify({'error': 'Specialization is required for engineers'}), 400
+        data = request.get_json()
         
-        profile = EngineerProfile(
-            user_id=user.id,
-            specialization=validated_data['specialization'],
-            years_exp=validated_data.get('years_exp', 0),
-            bio=validated_data.get('bio', ''),
-            subscription_status=SubscriptionStatus.ACTIVE.value,
-            subscription_expiry=date.today() + timedelta(days=30)  # 30-day trial
+        # DEBUG LOG (temporary)
+        current_app.logger.info(f"[REGISTER] Received data: {data}")
+        
+        # Validate with marshmallow schema
+        try:
+            validated_data = register_schema.load(data)
+        except ValidationError as err:
+            current_app.logger.warning(f"[REGISTER] Validation failed: {err.messages}")
+            # Format validation errors into user-friendly message
+            error_messages = []
+            for field, messages in err.messages.items():
+                if isinstance(messages, list):
+                    error_messages.extend([f"{field}: {msg}" for msg in messages])
+                else:
+                    error_messages.append(f"{field}: {messages}")
+            friendly_message = error_messages[0] if error_messages else 'Validation failed'
+            return jsonify({
+                'error': 'VALIDATION_ERROR',
+                'message': friendly_message,
+                'details': err.messages
+            }), 400
+        
+        # Role is REQUIRED - this is the source of truth
+        role = validated_data.get('role', '').lower()
+        if role not in ['customer', 'engineer']:
+            return jsonify({'error': 'Role is required. Must be "customer" or "engineer"'}), 400
+        
+        email = validated_data['email'].lower()
+        
+        # Check if email already exists
+        if User.query.filter_by(email=email).first():
+            current_app.logger.warning(f"[REGISTER] Email already exists: {email}")
+            return jsonify({
+                'error': 'EMAIL_EXISTS',
+                'message': 'This email is already registered',
+                'fields': {'email': 'This email is already in use'}
+            }), 409
+        
+        # DEBUG LOG (temporary)
+        current_app.logger.info(f"[REGISTER] Creating user: email={email}, role={role}")
+        
+        # Create user with role-based status
+        # Customer -> status=active, Engineer -> status=pending
+        user = User(
+            name=validated_data['name'],
+            email=email,
+            phone=validated_data.get('phone'),
+            role=role,
+            city=validated_data.get('city'),
+            area=validated_data.get('area'),
+            status=UserStatus.ACTIVE.value if role == UserRole.CUSTOMER.value else UserStatus.PENDING.value
         )
-        db.session.add(profile)
+        user.set_password(validated_data['password'])
+        
+        db.session.add(user)
+        db.session.flush()  # Get user ID
+        
+        current_app.logger.info(f"[REGISTER] Flushed user: id={user.id}, email={email}")
+        
+        # If engineer, create profile and approval request
+        if role == UserRole.ENGINEER.value:
+            # Specialization will default to empty string if not provided
+            # Engineers can update it after approval
+            specialization = validated_data.get('specialization', '')
+            
+            # If no specialization provided, use a placeholder
+            if not specialization:
+                specialization = 'Not specified'
+            
+            profile = EngineerProfile(
+                user_id=user.id,
+                specialization=specialization,
+                years_exp=validated_data.get('years_exp', 0),
+                bio=validated_data.get('bio', ''),
+                subscription_status=SubscriptionStatus.ACTIVE.value,
+                subscription_expiry=date.today() + timedelta(days=30)  # 30-day trial
+            )
+            db.session.add(profile)
+            current_app.logger.info(f"[REGISTER] Added engineer profile for user {user.id}")
+            
+            # Create approval request visible to all admins
+            approval_request = EngineerApprovalRequest(
+                user_id=user.id,
+                name=user.name,
+                email=user.email,
+                phone=user.phone,
+                city=user.city,
+                area=user.area,
+                specialization=specialization,
+                years_exp=validated_data.get('years_exp', 0),
+                bio=validated_data.get('bio', ''),
+                status=ApprovalStatus.PENDING.value
+            )
+            db.session.add(approval_request)
+            current_app.logger.info(f"[REGISTER] Added approval request for user {user.id}")
+        
+        # Commit all changes
+        db.session.commit()
+        current_app.logger.info(f"[REGISTER] Committed user to database: id={user.id}, email={email}")
+        
+        # Build user response with verification_status
+        user_data = user.to_dict(include_profile=True)
+        
+        # Add verification_status based on user status (for engineers)
+        if role == UserRole.ENGINEER.value:
+            user_data['verification_status'] = 'pending'  # Always pending for new engineers
+        else:
+            user_data['verification_status'] = None
+        
+        # DEBUG LOG (temporary)
+        current_app.logger.info(f"[REGISTER] User created: id={user.id}, role={user.role}, status={user.status}")
+        
+        # Build response
+        response = {
+            'message': 'Registration successful',
+            'user': user_data
+        }
+        
+        if role == UserRole.CUSTOMER.value:
+            access_token = create_access_token(identity=user)
+            response['access_token'] = access_token
+            response['message'] = 'Registration successful. You can now login.'
+        else:
+            # Engineers also get token so they can login and upload CV/certificate while pending
+            access_token = create_access_token(identity=user)
+            response['access_token'] = access_token
+            response['message'] = 'Registration successful. Your account is pending admin approval. You can login now to upload your CV and certificate.'
+        
+        current_app.logger.info(f"[REGISTER] Registration complete for {email}")
+        return jsonify(response), 201
     
-    db.session.commit()
-    
-    # Build user response with verification_status
-    user_data = user.to_dict(include_profile=True)
-    
-    # Add verification_status based on user status (for engineers)
-    if role == UserRole.ENGINEER.value:
-        user_data['verification_status'] = 'pending'  # Always pending for new engineers
-    else:
-        user_data['verification_status'] = None
-    
-    # DEBUG LOG (temporary)
-    current_app.logger.info(f"[REGISTER] User created: id={user.id}, role={user.role}, status={user.status}")
-    
-    # Build response
-    response = {
-        'message': 'Registration successful',
-        'user': user_data
-    }
-    
-    if role == UserRole.CUSTOMER.value:
-        access_token = create_access_token(identity=user)
-        response['access_token'] = access_token
-        response['message'] = 'Registration successful. You can now login.'
-    else:
-        response['message'] = 'Registration successful. Your account is pending admin approval.'
-    
-    return jsonify(response), 201
+    except Exception as e:
+        current_app.logger.error(f"[REGISTER] Unexpected error: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'error': 'REGISTRATION_ERROR',
+            'message': 'An unexpected error occurred during registration',
+            'details': str(e)
+        }), 500
 
 
 # Helper to conditionally apply rate limit

@@ -6,8 +6,9 @@ from flask_jwt_extended import jwt_required, current_user
 
 from ..extensions import db
 from ..models.engineer_profile import EngineerProfile
+from ..models.engineer_certificate import EngineerCertificate
 from ..models.portfolio import PortfolioItem
-from ..models.user import User, UserRole
+from ..models.user import User, UserRole, UserStatus
 from ..utils.decorators import require_role
 
 bp = Blueprint('engineer', __name__)
@@ -26,9 +27,13 @@ def get_profile():
     # Get portfolio items
     portfolio = PortfolioItem.query.filter_by(engineer_id=current_user.id).all()
     
+    # Get certificates
+    certificates = EngineerCertificate.query.filter_by(user_id=current_user.id).all()
+    
     return jsonify({
         'user': current_user.to_dict(),
         'profile': profile.to_dict(),
+        'certificates': [c.to_dict() for c in certificates],
         'portfolio': [p.to_dict() for p in portfolio]
     }), 200
 
@@ -162,6 +167,77 @@ def delete_portfolio_item(item_id):
         'message': 'Portfolio item deleted'
     }), 200
 
+
+# ==================== Certificate Management ====================
+
+@bp.route('/certificates', methods=['GET'])
+@jwt_required()
+@require_role('engineer')
+def get_certificates():
+    """Get all certificates for the engineer."""
+    certificates = EngineerCertificate.query.filter_by(user_id=current_user.id).all()
+    
+    return jsonify({
+        'certificates': [c.to_dict() for c in certificates],
+        'count': len(certificates)
+    }), 200
+
+
+@bp.route('/certificates/<int:cert_id>', methods=['GET'])
+@jwt_required()
+@require_role('engineer')
+def get_certificate(cert_id):
+    """Get a specific certificate."""
+    certificate = EngineerCertificate.query.get(cert_id)
+    
+    if not certificate:
+        return jsonify({'error': 'Certificate not found'}), 404
+    
+    if certificate.user_id != current_user.id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    return jsonify({
+        'certificate': certificate.to_dict()
+    }), 200
+
+
+@bp.route('/certificates/<int:cert_id>', methods=['DELETE'])
+@jwt_required()
+@require_role('engineer')
+def delete_certificate(cert_id):
+    """Delete a certificate."""
+    certificate = EngineerCertificate.query.get(cert_id)
+    
+    if not certificate:
+        return jsonify({'error': 'Certificate not found'}), 404
+    
+    if certificate.user_id != current_user.id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        # Delete the file from storage
+        import os
+        file_url = certificate.certificate_url
+        if file_url:
+            filename = file_url.split('/')[-1]
+            upload_folder = os.path.join('uploads', 'certificate')
+            file_path = os.path.join(upload_folder, filename)
+            
+            if os.path.exists(file_path):
+                os.remove(file_path)
+    except Exception as e:
+        pass  # Continue even if file deletion fails
+    
+    # Delete from database
+    db.session.delete(certificate)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Certificate deleted'
+    }), 200
+
+
+# ==================== Subscription ====================
 
 @bp.route('/subscription', methods=['GET'])
 @jwt_required()

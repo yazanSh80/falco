@@ -4,13 +4,14 @@ Admin API for FalcoElectrec
 import csv
 import io
 from datetime import datetime, date, timedelta
-from flask import Blueprint, request, jsonify, Response
-from flask_jwt_extended import jwt_required, current_user
+from flask import Blueprint, request, jsonify, Response, current_app
+from flask_jwt_extended import jwt_required, current_user, create_access_token
 from marshmallow import ValidationError
 
 from ..extensions import db
 from ..models.user import User, UserRole, UserStatus
 from ..models.engineer_profile import EngineerProfile
+from ..models.engineer_approval_request import EngineerApprovalRequest, ApprovalStatus
 from ..models.notification import Notification
 from ..models.review import Review
 from ..models.admin_action_log import AdminActionLog, AdminActionType
@@ -24,13 +25,74 @@ bp = Blueprint('admin', __name__)
 create_admin_schema = CreateAdminSchema()
 
 
-# ==================== Engineer Approval ====================
+# ==================== Engineer Approval Requests ====================
+
+@bp.route('/engineer-approval-requests', methods=['GET'])
+@jwt_required()
+@require_role('admin')
+def get_engineer_approval_requests():
+    """Get list of all pending engineer approval requests.
+    
+    Returns all approval requests with complete engineer data.
+    This is visible to all admins.
+    """
+    status = request.args.get('status', ApprovalStatus.PENDING.value)
+    page, per_page = get_pagination_params()
+    
+    query = EngineerApprovalRequest.query
+    
+    if status:
+        query = query.filter_by(status=status)
+    
+    # Order by creation date (newest first)
+    query = query.order_by(EngineerApprovalRequest.created_at.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    requests_data = [req.to_dict() for req in pagination.items]
+    
+    return jsonify({
+        'approval_requests': requests_data,
+        'pagination': {
+            'page': pagination.page,
+            'per_page': pagination.per_page,
+            'total': pagination.total,
+            'pages': pagination.pages,
+            'has_next': pagination.has_next,
+            'has_prev': pagination.has_prev
+        }
+    }), 200
+
+
+@bp.route('/engineer-approval-requests/<int:request_id>', methods=['GET'])
+@jwt_required()
+@require_role('admin')
+def get_engineer_approval_request(request_id):
+    """Get a specific engineer approval request."""
+    approval_req = EngineerApprovalRequest.query.get(request_id)
+    
+    if not approval_req:
+        return jsonify({'error': 'Approval request not found'}), 404
+    
+    # Get full user data if available
+    user_data = None
+    if approval_req.user:
+        user_data = approval_req.user.to_dict(include_profile=True)
+    
+    return jsonify({
+        'approval_request': approval_req.to_dict(),
+        'user': user_data
+    }), 200
+
 
 @bp.route('/engineers/pending', methods=['GET'])
 @jwt_required()
 @require_role('admin')
 def get_pending_engineers():
-    """Get list of engineers pending approval."""
+    """Get list of engineers pending approval (legacy endpoint).
+    
+    Kept for backward compatibility.
+    Recommend using /engineer-approval-requests instead.
+    """
     pending = User.query.filter_by(
         role=UserRole.ENGINEER.value,
         status=UserStatus.PENDING.value
@@ -49,11 +111,15 @@ def get_pending_engineers():
     }), 200
 
 
-@bp.route('/engineers/<int:engineer_id>/accept', methods=['POST'])
+@bp.route('/engineers/<int:engineer_id>/approve', methods=['POST'])
 @jwt_required()
 @require_role('admin')
-def accept_engineer(engineer_id):
-    """Approve an engineer's registration."""
+def approve_engineer(engineer_id):
+    """Approve an engineer's registration.
+    
+    Changes engineer status from PENDING to ACTIVE.
+    Updates the related approval request record.
+    """
     user = User.query.get(engineer_id)
     
     if not user:
@@ -65,7 +131,15 @@ def accept_engineer(engineer_id):
     if user.status != UserStatus.PENDING.value:
         return jsonify({'error': 'Engineer is not pending approval'}), 400
     
+    # Update user status
     user.status = UserStatus.ACTIVE.value
+    
+    # Update approval request
+    approval_req = EngineerApprovalRequest.query.filter_by(user_id=engineer_id).first()
+    if approval_req:
+        approval_req.status = ApprovalStatus.APPROVED.value
+        approval_req.reviewed_by_admin_id = current_user.id
+        approval_req.review_date = datetime.utcnow()
     
     # Notify engineer
     Notification.notify_account_approved(engineer_id)
@@ -85,15 +159,32 @@ def accept_engineer(engineer_id):
     
     return jsonify({
         'message': 'Engineer approved successfully',
-        'engineer': user.to_dict(include_profile=True)
+        'engineer': user.to_dict(include_profile=True),
+        'approval_request': approval_req.to_dict() if approval_req else None
     }), 200
+
+
+@bp.route('/engineers/<int:engineer_id>/accept', methods=['POST'])
+@jwt_required()
+@require_role('admin')
+def accept_engineer(engineer_id):
+    """Approve an engineer's registration (legacy endpoint).
+    
+    Kept for backward compatibility.
+    Recommend using /engineers/<id>/approve instead.
+    """
+    return approve_engineer(engineer_id)
 
 
 @bp.route('/engineers/<int:engineer_id>/reject', methods=['POST'])
 @jwt_required()
 @require_role('admin')
 def reject_engineer(engineer_id):
-    """Reject an engineer's registration."""
+    """Reject an engineer's registration.
+    
+    Deletes the engineer user account and profile.
+    Marks the approval request as rejected.
+    """
     data = request.get_json() or {}
     reason = data.get('reason')
     
@@ -105,9 +196,18 @@ def reject_engineer(engineer_id):
     if user.role != UserRole.ENGINEER.value:
         return jsonify({'error': 'User is not an engineer'}), 400
     
+    # Get approval request before deletion
+    approval_req = EngineerApprovalRequest.query.filter_by(user_id=engineer_id).first()
+    
     # Notify before deletion
     Notification.notify_account_rejected(engineer_id, reason)
-    db.session.commit()
+    
+    # Update approval request
+    if approval_req:
+        approval_req.status = ApprovalStatus.REJECTED.value
+        approval_req.reviewed_by_admin_id = current_user.id
+        approval_req.review_date = datetime.utcnow()
+        approval_req.rejection_reason = reason
     
     # Log admin action before deletion
     AdminActionLog.log(
@@ -120,17 +220,146 @@ def reject_engineer(engineer_id):
         user_agent=request.headers.get('User-Agent')
     )
     
-    # Delete user (or mark as rejected based on requirements)
-    # For now, we delete
+    # Delete user (cascade will delete profile and other relations)
     db.session.delete(user)
     db.session.commit()
     
     return jsonify({
-        'message': 'Engineer rejected and removed'
+        'message': 'Engineer rejected and account deleted',
+        'approval_request': approval_req.to_dict() if approval_req else None
     }), 200
 
 
+@bp.route('/engineer-approval-requests/<int:request_id>/approve', methods=['POST'])
+@jwt_required()
+@require_role('admin')
+def approve_engineer_request(request_id):
+    """Approve an engineer using the approval request ID."""
+    approval_req = EngineerApprovalRequest.query.get(request_id)
+    
+    if not approval_req:
+        return jsonify({'error': 'Approval request not found'}), 404
+    
+    if approval_req.status != ApprovalStatus.PENDING.value:
+        return jsonify({'error': 'Approval request is not pending'}), 400
+    
+    # Use the engineer ID from the approval request
+    return approve_engineer(approval_req.user_id)
+
+
+@bp.route('/engineer-approval-requests/<int:request_id>/reject', methods=['POST'])
+@jwt_required()
+@require_role('admin')
+def reject_engineer_request(request_id):
+    """Reject an engineer using the approval request ID."""
+    approval_req = EngineerApprovalRequest.query.get(request_id)
+    
+    if not approval_req:
+        return jsonify({'error': 'Approval request not found'}), 404
+    
+    if approval_req.status != ApprovalStatus.PENDING.value:
+        return jsonify({'error': 'Approval request is not pending'}), 400
+    
+    # Use the engineer ID from the approval request
+    return reject_engineer(approval_req.user_id)
+
+
 # ==================== User Management ====================
+
+@bp.route('/create-admin', methods=['POST'])
+@jwt_required()
+@require_role('admin')
+def create_admin():
+    """Create a new admin user.
+    
+    Only existing admins can create new admin accounts.
+    The new admin is created with active status and can immediately login.
+    """
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"[CREATE_ADMIN] Received data from admin {current_user.id}: name={data.get('name')}, email={data.get('email')}")
+        
+        # Validate with marshmallow schema
+        try:
+            validated_data = create_admin_schema.load(data)
+        except ValidationError as err:
+            current_app.logger.warning(f"[CREATE_ADMIN] Validation failed: {err.messages}")
+            # Format validation errors into user-friendly message
+            error_messages = []
+            for field, messages in err.messages.items():
+                if isinstance(messages, list):
+                    error_messages.extend([f"{field}: {msg}" for msg in messages])
+                else:
+                    error_messages.append(f"{field}: {messages}")
+            friendly_message = error_messages[0] if error_messages else 'Validation failed'
+            return jsonify({
+                'error': 'VALIDATION_ERROR',
+                'message': friendly_message,
+                'details': err.messages
+            }), 400
+        
+        email = validated_data['email'].lower()
+        
+        # Check if email already exists
+        if User.query.filter_by(email=email).first():
+            current_app.logger.warning(f"[CREATE_ADMIN] Email already exists: {email}")
+            return jsonify({
+                'error': 'EMAIL_EXISTS',
+                'message': 'This email is already registered',
+                'fields': {'email': 'This email is already in use'}
+            }), 409
+        
+        # Create admin user with active status
+        admin = User(
+            name=validated_data['name'],
+            email=email,
+            phone=validated_data.get('phone'),
+            role=UserRole.ADMIN.value,
+            status=UserStatus.ACTIVE.value
+        )
+        admin.set_password(validated_data['password'])
+        
+        db.session.add(admin)
+        db.session.flush()  # Get admin ID
+        
+        current_app.logger.info(f"[CREATE_ADMIN] Flushed admin user: id={admin.id}, email={email}")
+        
+        # Commit the transaction
+        db.session.commit()
+        current_app.logger.info(f"[CREATE_ADMIN] Committed admin to database: id={admin.id}, email={email}")
+        
+        # Log admin action
+        AdminActionLog.log(
+            admin_id=current_user.id,
+            action_type=AdminActionType.CREATE_ADMIN,
+            target_type='admin',
+            target_id=admin.id,
+            details={'admin_name': admin.name, 'admin_email': admin.email},
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        # Create JWT token for the new admin
+        access_token = create_access_token(identity=admin)
+        
+        response = {
+            'message': 'Admin created successfully',
+            'user': admin.to_dict(),
+            'access_token': access_token
+        }
+        
+        current_app.logger.info(f"[CREATE_ADMIN] Admin creation complete: {email}")
+        return jsonify(response), 201
+    
+    except Exception as e:
+        current_app.logger.error(f"[CREATE_ADMIN] Unexpected error: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'error': 'ADMIN_CREATION_ERROR',
+            'message': 'An unexpected error occurred while creating admin',
+            'details': str(e)
+        }), 500
+
 
 @bp.route('/users', methods=['GET'])
 @jwt_required()

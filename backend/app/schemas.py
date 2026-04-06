@@ -136,6 +136,11 @@ class AdminEngineerActionSchema(Schema):
     reason = fields.Str(validate=validate.Length(max=500), allow_none=True)
 
 
+class ApprovalRequestActionSchema(Schema):
+    """Schema for approving/rejecting engineer approval requests."""
+    reason = fields.Str(validate=validate.Length(max=500), allow_none=True)
+
+
 class CreateAdminSchema(Schema):
     """Schema for creating a new admin."""
     name = fields.Str(required=True, validate=validate.Length(min=2, max=100))

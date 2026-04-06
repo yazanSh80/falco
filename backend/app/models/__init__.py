@@ -3,6 +3,8 @@ Database Models for FalcoElectrec
 """
 from .user import User
 from .engineer_profile import EngineerProfile
+from .engineer_approval_request import EngineerApprovalRequest, ApprovalStatus
+from .engineer_certificate import EngineerCertificate
 from .service import Feature, Service
 from .request import Request
 from .review import Review
@@ -18,6 +20,9 @@ from .token_blocklist import TokenBlocklist
 __all__ = [
     'User',
     'EngineerProfile',
+    'EngineerApprovalRequest',
+    'ApprovalStatus',
+    'EngineerCertificate',
     'Feature',
     'Service',
     'Request',

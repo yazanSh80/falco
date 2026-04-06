@@ -132,16 +132,16 @@ def seed_demo_database():
     app = create_app()
     
     with app.app_context():
-        print("🎬 Starting DEMO database seeding...")
+        print("[STARTING] DEMO database seeding...")
         print("   This creates comprehensive data for graduation presentation.\n")
         
         # Clear existing data
-        print("  🗑️  Clearing existing data...")
+        print("  [CLEAR] Clearing existing data...")
         db.drop_all()
         db.create_all()
         
         # ==================== Features ====================
-        print("  📦 Creating features...")
+        print("  [FEATURES] Creating features...")
         features_data = [
             {'id': 'F1', 'name': 'A/C Maintenance', 'icon': 'Wind', 'description': 'Air conditioning repair, cleaning, and installation'},
             {'id': 'F2', 'name': 'Plumbing', 'icon': 'Droplet', 'description': 'Pipe repair, faucet installation, water heater services'},
@@ -155,7 +155,7 @@ def seed_demo_database():
             db.session.add(Feature(**f_data))
         
         # ==================== Services ====================
-        print("  🔧 Creating services...")
+        print("  [SERVICES] Creating services...")
         services_data = [
             # A/C Maintenance
             {'id': 'S1', 'feature_id': 'F1', 'name': 'AC Unit Cleaning', 'base_price': 150, 'description': 'Complete AC unit cleaning and filter replacement'},
@@ -202,7 +202,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Admins ====================
-        print("  👑 Creating admins...")
+        print("  [ADMINS] Creating admins...")
         
         # Demo Super Admin (Ahmad SAQER - Project Lead)
         # Email: ahmadsaqer818@gmail.com | Password: saqer123
@@ -217,7 +217,7 @@ def seed_demo_database():
         )
         super_admin.set_password('saqer123')  # Demo password as requested
         db.session.add(super_admin)
-        print("    ✓ Super Admin: ahmadsaqer818@gmail.com / saqer123")
+        print("    [OK] Super Admin: ahmadsaqer818@gmail.com / saqer123")
         
         admin = User(
             name='Admin Ahmad',
@@ -246,7 +246,7 @@ def seed_demo_database():
         db.session.flush()
         
         # ==================== Customers ====================
-        print("  👤 Creating customers (15)...")
+        print("  [CUSTOMERS] Creating customers (15)...")
         
         customers = []
         for i in range(15):
@@ -270,7 +270,7 @@ def seed_demo_database():
         db.session.flush()
         
         # ==================== Engineers ====================
-        print("  🛠️  Creating engineers (12)...")
+        print("  [ENGINEERS] Creating engineers (12)...")
         
         specializations = ['A/C Maintenance', 'Plumbing', 'Carpentry', 'Electricity', 'Alumetal', 'Furniture Cleaning']
         
@@ -339,7 +339,7 @@ def seed_demo_database():
         active_engineers = [e for i, e in enumerate(engineers) if engineer_data[i]['status'] == 'active']
         
         # ==================== Requests ====================
-        print("  📋 Creating requests (35)...")
+        print("  [REQUESTS] Creating requests (35)...")
         
         requests = []
         request_counter = 1
@@ -425,7 +425,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Reviews ====================
-        print("  ⭐ Creating reviews (25)...")
+        print("  [REVIEWS] Creating reviews (25)...")
         
         completed_requests = [r for r in requests if r.status == RequestStatus.COMPLETED.value]
         
@@ -459,7 +459,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Transactions ====================
-        print("  💰 Creating transactions (18)...")
+        print("  [TRANSACTIONS] Creating transactions (18)...")
         
         for req in completed_requests:
             commission_rate = 0.15  # 15% commission
@@ -481,7 +481,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Disputes ====================
-        print("  ⚖️  Creating disputes (5)...")
+        print("  [DISPUTES] Creating disputes (5)...")
         
         dispute_reasons = [
             "Engineer arrived 2 hours late without notice.",
@@ -514,7 +514,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Blocks ====================
-        print("  🚫 Creating blocks (4)...")
+        print("  [BLOCKS] Creating blocks (4)...")
         
         # Some customers blocking engineers
         for i in range(4):
@@ -531,7 +531,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Portfolio Items ====================
-        print("  📸 Creating portfolio items (20)...")
+        print("  [PORTFOLIO] Creating portfolio items (20)...")
         
         portfolio_titles = {
             'A/C Maintenance': ['Complete Home AC System', 'Commercial AC Installation', 'AC Repair Project', 'Central AC Maintenance'],
@@ -560,7 +560,7 @@ def seed_demo_database():
         db.session.commit()
         
         # ==================== Notifications ====================
-        print("  🔔 Creating notifications (30)...")
+        print("  [NOTIFICATIONS] Creating notifications (30)...")
         
         notification_templates = [
             {'type': 'request_completed', 'title': 'Request Completed', 'body': 'Your service request has been completed.'},
@@ -586,7 +586,7 @@ def seed_demo_database():
         
         # ==================== Admin Audit Log ====================
         if HAS_AUDIT_LOG:
-            print("  📝 Creating admin audit log entries (20)...")
+            print("  [AUDIT] Creating admin audit log entries (20)...")
             
             actions = [
                 {'action_type': 'approve_engineer', 'target_type': 'user', 'details': 'Approved engineer registration'},
@@ -612,49 +612,49 @@ def seed_demo_database():
         
         # ==================== Summary ====================
         print("\n" + "=" * 60)
-        print("✅ DEMO Database seeding completed!")
+        print("[SUCCESS] DEMO Database seeding completed!")
         print("=" * 60)
         
-        print("\n📊 Data Summary:")
-        print(f"   • Features: 6")
-        print(f"   • Services: 16")
-        print(f"   • Admins: 2")
-        print(f"   • Customers: 15 (13 active, 2 suspended)")
-        print(f"   • Engineers: 12 (8 active, 2 pending, 1 expired, 1 suspended)")
-        print(f"   • Requests: 35 (various statuses)")
-        print(f"   • Reviews: 25")
-        print(f"   • Transactions: 18")
-        print(f"   • Disputes: 5")
-        print(f"   • Blocks: 4")
-        print(f"   • Portfolio Items: ~20")
-        print(f"   • Notifications: 30")
+        print("\n[SUMMARY] Data Summary:")
+        print(f"   - Features: 6")
+        print(f"   - Services: 16")
+        print(f"   - Admins: 2")
+        print(f"   - Customers: 15 (13 active, 2 suspended)")
+        print(f"   - Engineers: 12 (8 active, 2 pending, 1 expired, 1 suspended)")
+        print(f"   - Requests: 35 (various statuses)")
+        print(f"   - Reviews: 25")
+        print(f"   - Transactions: 18")
+        print(f"   - Disputes: 5")
+        print(f"   - Blocks: 4")
+        print(f"   - Portfolio Items: ~20")
+        print(f"   - Notifications: 30")
         if HAS_AUDIT_LOG:
-            print(f"   • Audit Log Entries: 20")
+            print(f"   - Audit Log Entries: 20")
         
-        print("\n🔑 Demo Accounts:")
-        print("   ┌────────────────────────────────────────────────────────┐")
-        print("   │  ADMIN                                                 │")
-        print("   │    Email: admin@test.com                               │")
-        print("   │    Pass:  Pass123!                                     │")
-        print("   ├────────────────────────────────────────────────────────┤")
-        print("   │  CUSTOMER                                              │")
-        print("   │    Email: customer1@test.com                           │")
-        print("   │    Pass:  Pass123!                                     │")
-        print("   ├────────────────────────────────────────────────────────┤")
-        print("   │  ENGINEER (Active)                                     │")
-        print("   │    Email: engineer1@test.com                           │")
-        print("   │    Pass:  Pass123!                                     │")
-        print("   ├────────────────────────────────────────────────────────┤")
-        print("   │  ENGINEER (Expired Subscription)                       │")
-        print("   │    Email: engineer9@test.com                           │")
-        print("   │    Pass:  Pass123!                                     │")
-        print("   ├────────────────────────────────────────────────────────┤")
-        print("   │  ENGINEER (Pending Approval)                           │")
-        print("   │    Email: engineer11@test.com                          │")
-        print("   │    Pass:  Pass123!                                     │")
-        print("   └────────────────────────────────────────────────────────┘")
+        print("\n[ACCOUNTS] Demo Accounts:")
+        print("   +----------------------------------------------------------+")
+        print("   |  ADMIN                                                   |")
+        print("   |    Email: admin@test.com                                 |")
+        print("   |    Pass:  Pass123!                                       |")
+        print("   +----------------------------------------------------------+")
+        print("   |  CUSTOMER                                                |")
+        print("   |    Email: customer1@test.com                             |")
+        print("   |    Pass:  Pass123!                                       |")
+        print("   +----------------------------------------------------------+")
+        print("   |  ENGINEER (Active)                                       |")
+        print("   |    Email: engineer1@test.com                             |")
+        print("   |    Pass:  Pass123!                                       |")
+        print("   +----------------------------------------------------------+")
+        print("   |  ENGINEER (Expired Subscription)                         |")
+        print("   |    Email: engineer9@test.com                             |")
+        print("   |    Pass:  Pass123!                                       |")
+        print("   +----------------------------------------------------------+")
+        print("   |  ENGINEER (Pending Approval)                             |")
+        print("   |    Email: engineer11@test.com                            |")
+        print("   |    Pass:  Pass123!                                       |")
+        print("   +----------------------------------------------------------+")
         
-        print("\n🎬 Demo Scenarios to Show:")
+        print("\n[SCENARIOS] Demo Scenarios to Show:")
         print("   1. Admin Dashboard - Shows KPIs, charts, recent activity")
         print("   2. Engineer Recommendations - AI-powered matching")
         print("   3. SLA Monitoring - At-risk and breached requests")
