@@ -266,101 +266,6 @@ def reject_engineer_request(request_id):
 
 # ==================== User Management ====================
 
-@bp.route('/create-admin', methods=['POST'])
-@jwt_required()
-@require_role('admin')
-def create_admin():
-    """Create a new admin user.
-    
-    Only existing admins can create new admin accounts.
-    The new admin is created with active status and can immediately login.
-    """
-    try:
-        data = request.get_json()
-        current_app.logger.info(f"[CREATE_ADMIN] Received data from admin {current_user.id}: name={data.get('name')}, email={data.get('email')}")
-        
-        # Validate with marshmallow schema
-        try:
-            validated_data = create_admin_schema.load(data)
-        except ValidationError as err:
-            current_app.logger.warning(f"[CREATE_ADMIN] Validation failed: {err.messages}")
-            # Format validation errors into user-friendly message
-            error_messages = []
-            for field, messages in err.messages.items():
-                if isinstance(messages, list):
-                    error_messages.extend([f"{field}: {msg}" for msg in messages])
-                else:
-                    error_messages.append(f"{field}: {messages}")
-            friendly_message = error_messages[0] if error_messages else 'Validation failed'
-            return jsonify({
-                'error': 'VALIDATION_ERROR',
-                'message': friendly_message,
-                'details': err.messages
-            }), 400
-        
-        email = validated_data['email'].lower()
-        
-        # Check if email already exists
-        if User.query.filter_by(email=email).first():
-            current_app.logger.warning(f"[CREATE_ADMIN] Email already exists: {email}")
-            return jsonify({
-                'error': 'EMAIL_EXISTS',
-                'message': 'This email is already registered',
-                'fields': {'email': 'This email is already in use'}
-            }), 409
-        
-        # Create admin user with active status
-        admin = User(
-            name=validated_data['name'],
-            email=email,
-            phone=validated_data.get('phone'),
-            role=UserRole.ADMIN.value,
-            status=UserStatus.ACTIVE.value
-        )
-        admin.set_password(validated_data['password'])
-        
-        db.session.add(admin)
-        db.session.flush()  # Get admin ID
-        
-        current_app.logger.info(f"[CREATE_ADMIN] Flushed admin user: id={admin.id}, email={email}")
-        
-        # Commit the transaction
-        db.session.commit()
-        current_app.logger.info(f"[CREATE_ADMIN] Committed admin to database: id={admin.id}, email={email}")
-        
-        # Log admin action
-        AdminActionLog.log(
-            admin_id=current_user.id,
-            action_type=AdminActionType.CREATE_ADMIN,
-            target_type='admin',
-            target_id=admin.id,
-            details={'admin_name': admin.name, 'admin_email': admin.email},
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        
-        # Create JWT token for the new admin
-        access_token = create_access_token(identity=admin)
-        
-        response = {
-            'message': 'Admin created successfully',
-            'user': admin.to_dict(),
-            'access_token': access_token
-        }
-        
-        current_app.logger.info(f"[CREATE_ADMIN] Admin creation complete: {email}")
-        return jsonify(response), 201
-    
-    except Exception as e:
-        current_app.logger.error(f"[CREATE_ADMIN] Unexpected error: {str(e)}", exc_info=True)
-        db.session.rollback()
-        return jsonify({
-            'error': 'ADMIN_CREATION_ERROR',
-            'message': 'An unexpected error occurred while creating admin',
-            'details': str(e)
-        }), 500
-
-
 @bp.route('/users', methods=['GET'])
 @jwt_required()
 @require_role('admin')
@@ -525,51 +430,102 @@ def unblock_user(user_id):
 @jwt_required()
 @require_role('admin')
 def create_admin():
-    """Create a new admin user."""
-    data = request.get_json()
+    """Create a new admin user.
     
-    # Validate with marshmallow schema
+    Only existing admins can create new admin accounts.
+    The new admin is created with active status and can immediately login.
+    
+    Required fields:
+    - name: string (2-100 characters)
+    - email: valid email address
+    - password: string (validated by schema)
+    
+    Optional fields:
+    - phone: string
+    """
     try:
-        validated_data = create_admin_schema.load(data)
-    except ValidationError as err:
-        return jsonify({'error': 'Validation failed', 'details': err.messages}), 400
+        data = request.get_json()
+        current_app.logger.info(f"[CREATE_ADMIN] Received request from admin {current_user.id}: name={data.get('name')}, email={data.get('email')}")
+        
+        # Validate with marshmallow schema
+        try:
+            validated_data = create_admin_schema.load(data)
+        except ValidationError as err:
+            current_app.logger.warning(f"[CREATE_ADMIN] Validation failed: {err.messages}")
+            # Format validation errors into user-friendly message
+            error_messages = []
+            for field, messages in err.messages.items():
+                if isinstance(messages, list):
+                    error_messages.extend([f"{field}: {msg}" for msg in messages])
+                else:
+                    error_messages.append(f"{field}: {messages}")
+            friendly_message = error_messages[0] if error_messages else 'Validation failed'
+            return jsonify({
+                'error': 'VALIDATION_ERROR',
+                'message': friendly_message,
+                'details': err.messages
+            }), 400
+        
+        email = validated_data['email'].lower()
+        
+        # Check if email already exists
+        if User.query.filter_by(email=email).first():
+            current_app.logger.warning(f"[CREATE_ADMIN] Email already exists: {email}")
+            return jsonify({
+                'error': 'EMAIL_EXISTS',
+                'message': 'This email is already registered',
+                'fields': {'email': 'This email is already in use'}
+            }), 409
+        
+        # Create admin user with active status
+        admin = User(
+            name=validated_data['name'],
+            email=email,
+            phone=validated_data.get('phone'),
+            role=UserRole.ADMIN.value,
+            status=UserStatus.ACTIVE.value
+        )
+        admin.set_password(validated_data['password'])
+        
+        db.session.add(admin)
+        db.session.flush()  # Get admin ID before commit
+        
+        current_app.logger.info(f"[CREATE_ADMIN] Flushed admin user: id={admin.id}, email={email}")
+        
+        # Create JWT token for the new admin
+        access_token = create_access_token(identity=admin)
+        
+        # Log admin action
+        AdminActionLog.log(
+            admin_id=current_user.id,
+            action_type=AdminActionType.CREATE_ADMIN,
+            target_type='admin',
+            target_id=admin.id,
+            details={'admin_name': admin.name, 'admin_email': admin.email},
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        # Commit all changes to database
+        db.session.commit()
+        current_app.logger.info(f"[CREATE_ADMIN] Successfully created admin: id={admin.id}, email={email}")
+        
+        response = {
+            'message': 'Admin created successfully',
+            'user': admin.to_dict(),
+            'access_token': access_token
+        }
+        
+        return jsonify(response), 201
     
-    email = validated_data['email'].lower()
-    
-    # Check if email exists
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'Email already registered'}), 409
-    
-    # Create admin user
-    user = User(
-        name=validated_data['name'],
-        email=email,
-        phone=validated_data.get('phone'),
-        role=UserRole.ADMIN.value,
-        status=UserStatus.ACTIVE.value
-    )
-    user.set_password(validated_data['password'])
-    
-    db.session.add(user)
-    db.session.flush()  # Get user ID
-    
-    # Log admin action
-    AdminActionLog.log(
-        admin_id=current_user.id,
-        action_type=AdminActionType.CREATE_ADMIN,
-        target_type='user',
-        target_id=user.id,
-        details={'admin_name': user.name, 'admin_email': user.email},
-        ip_address=request.remote_addr,
-        user_agent=request.headers.get('User-Agent')
-    )
-    
-    db.session.commit()
-    
-    return jsonify({
-        'message': 'Admin created successfully',
-        'admin': user.to_dict()
-    }), 201
+    except Exception as e:
+        current_app.logger.error(f"[CREATE_ADMIN] Unexpected error: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'error': 'ADMIN_CREATION_ERROR',
+            'message': 'An unexpected error occurred while creating admin',
+            'details': str(e)
+        }), 500
 
 
 # ==================== Reviews Admin ====================
