@@ -9,7 +9,7 @@ from app.models.user import User, UserRole, UserStatus
 app = create_app()
 app.config.update({
     'TESTING': True,
-    'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
+    # 'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
 })
 
 print('JWT Secret:', app.config['JWT_SECRET_KEY'])

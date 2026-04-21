@@ -45,7 +45,7 @@ class Service(db.Model):
     __tablename__ = 'services'
     
     id = db.Column(db.String(10), primary_key=True)
-    feature_id = db.Column(db.String(10), db.ForeignKey('features.id'), nullable=False, index=True)
+    category_id = db.Column(db.String(10), db.ForeignKey('service_categories.id'), nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     base_price = db.Column(db.Float, nullable=False)

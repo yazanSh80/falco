@@ -137,8 +137,8 @@ def seed_demo_database():
         
         # Clear existing data
         print("  [CLEAR] Clearing existing data...")
-        db.drop_all()
-        db.create_all()
+        # db.drop_all()
+        # db.create_all()
         
         # ==================== Features ====================
         print("  [FEATURES] Creating features...")
@@ -244,6 +244,91 @@ def seed_demo_database():
         db.session.add(admin2)
         
         db.session.flush()
+        
+        # ==================== Standard Demo Accounts (For Quick Testing) ====================
+        print("  [DEMO ACCOUNTS] Creating standard demo accounts...")
+        
+        # Demo Customer
+        demo_customer = User(
+            name='Test Customer',
+            email='customer@test.com',
+            phone='0599000001',
+            role=UserRole.CUSTOMER.value,
+            status=UserStatus.ACTIVE.value,
+            city='Ramallah',
+            area='Al-Masyoun'
+        )
+        demo_customer.set_password('Pass123!')
+        db.session.add(demo_customer)
+        print("    [OK] Demo Customer: customer@test.com / Pass123!")
+        
+        # Demo Engineer (Active/Approved)
+        demo_engineer = User(
+            name='Test Engineer',
+            email='engineer@test.com',
+            phone='0599000002',
+            role=UserRole.ENGINEER.value,
+            status=UserStatus.ACTIVE.value,
+            city='Hebron',
+            area='H1'
+        )
+        demo_engineer.set_password('Pass123!')
+        db.session.add(demo_engineer)
+        db.session.flush()
+        print("    [OK] Demo Engineer: engineer@test.com / Pass123!")
+        
+        # Demo Engineer Profile (for active engineer)
+        demo_engineer_profile = EngineerProfile(
+            user_id=demo_engineer.id,
+            specialization='General',
+            years_exp=5,
+            bio='Demo engineer for testing purposes',
+            subscription_status=SubscriptionStatus.ACTIVE.value,
+            subscription_expiry=date.today() + timedelta(days=365)
+        )
+        db.session.add(demo_engineer_profile)
+        
+        # Demo Engineer (Pending Approval)
+        demo_engineer_pending = User(
+            name='Pending Engineer',
+            email='engineer.pending@test.com',
+            phone='0599000003',
+            role=UserRole.ENGINEER.value,
+            status=UserStatus.PENDING.value,
+            city='Nablus',
+            area='Old City'
+        )
+        demo_engineer_pending.set_password('Pass123!')
+        db.session.add(demo_engineer_pending)
+        db.session.flush()
+        print("    [OK] Demo Engineer (Pending): engineer.pending@test.com / Pass123!")
+        
+        # Demo Engineer Profile (for pending engineer)
+        demo_engineer_pending_profile = EngineerProfile(
+            user_id=demo_engineer_pending.id,
+            specialization='Electrical',
+            years_exp=3,
+            bio='Demo engineer pending approval for testing purposes',
+            subscription_status=SubscriptionStatus.ACTIVE.value,
+            subscription_expiry=date.today() + timedelta(days=30)
+        )
+        db.session.add(demo_engineer_pending_profile)
+        
+        # Demo Admin (Alternative)
+        demo_admin_alt = User(
+            name='Super Admin',
+            email='admin@falco.local',
+            phone='0599000004',
+            role=UserRole.ADMIN.value,
+            status=UserStatus.ACTIVE.value,
+            city='Ramallah',
+            area='Shaar'
+        )
+        demo_admin_alt.set_password('Admin@12345')
+        db.session.add(demo_admin_alt)
+        print("    [OK] Demo Admin (Alt): admin@falco.local / Admin@12345")
+        
+        db.session.commit()
         
         # ==================== Customers ====================
         print("  [CUSTOMERS] Creating customers (15)...")

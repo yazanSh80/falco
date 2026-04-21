@@ -5,6 +5,7 @@ from .user import User
 from .engineer_profile import EngineerProfile
 from .engineer_approval_request import EngineerApprovalRequest, ApprovalStatus
 from .engineer_certificate import EngineerCertificate
+from .service_category import ServiceCategory
 from .service import Feature, Service
 from .request import Request
 from .review import Review
@@ -23,6 +24,7 @@ __all__ = [
     'EngineerApprovalRequest',
     'ApprovalStatus',
     'EngineerCertificate',
+    'ServiceCategory',
     'Feature',
     'Service',
     'Request',

@@ -19,7 +19,7 @@ def add_indexes():
     app = create_app()
     
     with app.app_context():
-        # SQLite index creation statements
+# MySQL index creation statements
         indexes = [
             # Requests table indexes
             "CREATE INDEX IF NOT EXISTS ix_requests_status ON requests (status)",

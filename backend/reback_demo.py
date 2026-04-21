@@ -23,10 +23,8 @@ def restore_and_seed():
         # Step 1: Drop and recreate database
         print("\n[1/3] Preparing database...")
         try:
-            db.drop_all()
-            print("     [OK] Dropped existing tables")
-            db.create_all()
-            print("     [OK] Created fresh schema")
+            print("     [INFO] Schema managed by Alembic migrations: flask db upgrade")
+            print("     [SKIP] Skipping legacy create_all")
         except Exception as e:
             print(f"     [ERROR] {e}")
             return False

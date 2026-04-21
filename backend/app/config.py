@@ -17,7 +17,7 @@ class Config:
     # Database
     SQLALCHEMY_DATABASE_URI = os.getenv(
         'DATABASE_URL',
-        'mysql+pymysql://falco:falco_secret@localhost:3306/falcoelectrec'
+        'mysql+pymysql://falco:falco_secret@localhost:3306/Graduation'
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = os.getenv('FLASK_ENV') == 'development'
@@ -44,6 +44,57 @@ class Config:
         'ahmadsaqer818@gmail.com'
     ]
     DEMO_MODE = os.getenv('DEMO_MODE', 'true').lower() == 'true'
+    
+    # =============== DEMO ACCOUNTS FOR DUAL AUTHENTICATION ===============
+    # These demo accounts work as fallback when:
+    # 1. User not found in database, OR
+    # 2. Password doesn't match database hash
+    # 
+    # This allows both demo + real database users to work seamlessly.
+    # Once a user registers in the database, their database password takes precedence.
+    DEMO_ACCOUNTS = {
+        # Customers
+        'customer@test.com': {
+            'password': 'Pass123!',
+            'role': 'customer',
+            'name': 'Test Customer',
+            'status': 'active',
+        },
+        # Engineers
+        'engineer@test.com': {
+            'password': 'Pass123!',
+            'role': 'engineer',
+            'name': 'Test Engineer',
+            'status': 'active',
+            'verification_status': 'approved',
+        },
+        'engineer.pending@test.com': {
+            'password': 'Pass123!',
+            'role': 'engineer',
+            'name': 'Pending Engineer',
+            'status': 'pending',
+            'verification_status': 'pending',
+        },
+        # Admins
+        'admin@test.com': {
+            'password': 'Pass123!',
+            'role': 'admin',
+            'name': 'Test Admin',
+            'status': 'active',
+        },
+        'admin@falco.local': {
+            'password': 'Admin@12345',
+            'role': 'admin',
+            'name': 'Super Admin',
+            'status': 'active',
+        },
+        'ahmadsaqer818@gmail.com': {
+            'password': 'saqer123',
+            'role': 'admin',
+            'name': 'Ahmad Saqer',
+            'status': 'active',
+        },
+    }
 
 
 class DevelopmentConfig(Config):
@@ -61,7 +112,10 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     """Testing configuration."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'TEST_DATABASE_URL',
+        'mysql+pymysql://falco:falco_secret@localhost:3306/Graduation_test'
+    )
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(seconds=5)
 
 

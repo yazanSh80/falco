@@ -174,20 +174,10 @@ def register():
         }), 500
 
 
-# Helper to conditionally apply rate limit
-def rate_limit_login():
-    """Apply rate limit only if limiter is initialized (non-testing mode)."""
-    if current_app.config.get('TESTING'):
-        return None  # No rate limit in testing
-    return "5 per minute"
-
-
+# Register login route
 @bp.route('/login', methods=['POST'])
-@limiter.limit(rate_limit_login)
 def login():
-    """Authenticate user and return JWT token.
-    
-    Rate limited to 5 requests per minute to prevent brute force attacks.
+    """Authenticate user with database credentials and return JWT token.
     
     Returns user with role, status, and verification_status for proper frontend routing.
     Engineers are allowed to login even with pending status to see their pending page.
@@ -207,20 +197,29 @@ def login():
     email = validated_data['email'].lower()
     password = validated_data['password']
     
-    # Find user
+    # Query database for user
     user = User.query.filter_by(email=email).first()
     
-    if not user or not user.check_password(password):
+    if not user:
+        current_app.logger.warning(f"[LOGIN] User not found: {email}")
         return jsonify({
             'error': 'INVALID_CREDENTIALS',
             'message': 'Invalid email or password'
         }), 401
     
-    # DEBUG LOG (temporary)
-    current_app.logger.info(f"[LOGIN] User: {user.email}, Role: {user.role}, Status: {user.status}")
+    # Verify password
+    if not user.check_password(password):
+        current_app.logger.warning(f"[LOGIN] Invalid password for user: {email}")
+        return jsonify({
+            'error': 'INVALID_CREDENTIALS',
+            'message': 'Invalid email or password'
+        }), 401
+    
+    current_app.logger.info(f"[LOGIN] Password verified for user: {user.email}, Role: {user.role}, Status: {user.status}")
     
     # Check status - blocked users cannot login
     if user.status == UserStatus.BLOCKED.value:
+        current_app.logger.warning(f"[LOGIN] Blocked user attempted login: {email}")
         return jsonify({
             'error': 'ACCOUNT_BLOCKED',
             'message': 'Your account has been blocked. Contact support.'
@@ -228,14 +227,18 @@ def login():
     
     # For non-engineers, pending status means they cannot login
     if user.status == UserStatus.PENDING.value and user.role != UserRole.ENGINEER.value:
+        current_app.logger.warning(f"[LOGIN] Pending non-engineer user attempted login: {email}")
         return jsonify({
-            'error': 'Your account is pending approval.',
+            'error': 'ACCOUNT_PENDING',
+            'message': 'Your account is pending approval.',
             'code': 'pending_approval'
         }), 403
     
     # Generate tokens
     access_token = create_access_token(identity=user)
     refresh_token = create_refresh_token(identity=user)
+    
+    current_app.logger.info(f"[LOGIN] Tokens generated for user: {user.email}")
     
     # Build user response with verification_status for engineers
     user_data = user.to_dict(include_profile=True)
@@ -251,9 +254,7 @@ def login():
     else:
         user_data['verification_status'] = None
     
-    # DEBUG LOG (temporary)
-    current_app.logger.info(f"[LOGIN] Response user: role={user_data['role']}, status={user_data['status']}, verification_status={user_data.get('verification_status')}")
-    
+    current_app.logger.info(f"[LOGIN] Successful login for user: {email}, role: {user.role}")
     return jsonify({
         'access_token': access_token,
         'refresh_token': refresh_token,

@@ -141,5 +141,8 @@ def create_app(config_class=Config):
     # Initialize CLI commands
     from .cli import init_cli
     init_cli(app)
+    
+    # Register Flask-Migrate CLI commands
+    migrate.cli.register(app, db)
 
     return app

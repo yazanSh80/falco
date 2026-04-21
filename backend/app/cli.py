@@ -3,10 +3,9 @@ CLI Commands for FalcoElectrec
 Custom Flask CLI commands for administrative tasks.
 """
 import os
-import shutil
-from datetime import datetime
 from flask import current_app
 import click
+from .extensions import db
 
 
 def init_cli(app):
@@ -15,20 +14,12 @@ def init_cli(app):
     @app.cli.command('backup-db')
     @click.option('--output-dir', default='backups', help='Directory to store backups')
     def backup_db(output_dir):
-        """Create a timestamped backup of the SQLite database.
-        
-        Usage:
-            flask backup-db
-            flask backup-db --output-dir /path/to/backups
-        
-        Creates a backup file named: falco_backup_YYYYMMDD_HHMMSS.db
-        """
-        # Get the database URI
-        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        
-        if not db_uri.startswith('sqlite:///'):
-            click.echo('Error: Backup command only works with SQLite databases')
-            return 1
+        \"\"\"MySQL backup proxy. Use mysqldump for backups.
+        Usage: mysqldump -u falco -pfalco_secret Graduation > backup.sql
+        \"\"\"
+        click.echo('Use mysqldump for MySQL backups')
+        click.echo('Example: mysqldump -u falco -pfalco_secret Graduation > backup.sql')
+        return 0
         
         # Extract the database path
         if db_uri.startswith('sqlite:////'):
