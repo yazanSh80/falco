@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Stack
 - **Frontend**: React 18.2, TypeScript 5.3, Vite 5.0, TailwindCSS 3.4
 - **Backend**: Flask 3.x, SQLAlchemy 2.x, Flask-JWT-Extended
-- **Database**: PostgreSQL 15 / SQLite (development)
+- **Database**: MySQL 8.0 (Graduation/Graduation_test)
 - **Infrastructure**: Docker, Docker Compose
 
 ---

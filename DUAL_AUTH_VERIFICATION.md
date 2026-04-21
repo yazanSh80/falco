@@ -20,7 +20,7 @@ cat backend/.env | grep -E "(DEMO_MODE|DATABASE_URL|JWT_SECRET)"
 
 Expected:
 - DEMO_MODE=false (for live mode testing)
-- DATABASE_URL=mysql+pymysql://... (or sqlite for testing)
+DATABASE_URL=mysql+pymysql://... (Graduation DB)
 - JWT_SECRET_KEY=... (not empty)
 ```
 
