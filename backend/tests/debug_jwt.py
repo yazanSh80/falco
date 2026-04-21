@@ -15,7 +15,8 @@ app.config.update({
 print('JWT Secret:', app.config['JWT_SECRET_KEY'])
 
 with app.app_context():
-    db.create_all()
+    # db.create_all() - Alembic manages schema
+
     
     # Create user
     user = User(

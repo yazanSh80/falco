@@ -113,8 +113,9 @@ Expected output:
 # If using MySQL:
 mysql -u root -p Graduation -e "SELECT email, role, status FROM users WHERE email LIKE '%test.com%' OR email LIKE '%falco.local%' OR email = 'ahmadsaqer818@gmail.com';"
 
-# If using SQLite:
-sqlite3 instance/falcoelectrec.db "SELECT email, role, status FROM users WHERE email LIKE '%test.com%';"
+# MySQL:
+mysql -u falco -pfalco_secret Graduation -e "SELECT email, role, status FROM users WHERE email LIKE '%test.com%';" 
+
 ```
 
 Expected results:
