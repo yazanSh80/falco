@@ -14,16 +14,19 @@ def init_cli(app):
     @app.cli.command('backup-db')
     @click.option('--output-dir', default='backups', help='Directory to store backups')
     def backup_db(output_dir):
-        \"\"\"MySQL backup proxy. Use mysqldump for backups.
+
+        \"\"\"Reminder: Use mysqldump for MySQL backups (SQLite commands disabled)
+        
         Usage: mysqldump -u falco -pfalco_secret Graduation > backup.sql
         \"\"\"
         click.echo('Use mysqldump for MySQL backups')
-        click.echo('Example: mysqldump -u falco -pfalco_secret Graduation > backup.sql')
+        click.echo('mysqldump -u falco -pfalco_secret Graduation > backup.sql')
         return 0
+
         
         # Extract the database path
-        if db_uri.startswith('sqlite:////'):
-            # Absolute path (4 slashes for Unix, or on Windows with drive letter)
+        # DEPRECATED: sqlite://// (MySQL only)
+
             db_path = db_uri[10:]
         else:
             # Relative path (3 slashes)
@@ -81,165 +84,22 @@ def init_cli(app):
             click.echo(f'Error creating backup: {str(e)}')
             return 1
     
-    @app.cli.command('list-backups')
-    @click.option('--backup-dir', default='backups', help='Directory containing backups')
-    def list_backups(backup_dir):
-        """List all database backups.
-        
-        Usage:
-            flask list-backups
-            flask list-backups --backup-dir /path/to/backups
-        """
-        # Make relative to the backend folder
-        if not os.path.isabs(backup_dir):
-            backend_dir = os.path.dirname(current_app.instance_path)
-            backup_dir = os.path.join(backend_dir, backup_dir)
-        
-        if not os.path.exists(backup_dir):
-            click.echo(f'No backup directory found at: {backup_dir}')
-            return 0
-        
-        backups = sorted([
-            f for f in os.listdir(backup_dir) 
-            if f.startswith('falco_backup_') and f.endswith('.db')
-        ])
-        
-        if not backups:
-            click.echo('No backups found.')
-            return 0
-        
-        click.echo(f'📁 Backups in {backup_dir}:')
-        click.echo('-' * 60)
-        
-        total_size = 0
-        for backup in backups:
-            backup_path = os.path.join(backup_dir, backup)
-            size = os.path.getsize(backup_path)
-            total_size += size
-            
-            # Parse timestamp from filename
-            try:
-                ts = backup.replace('falco_backup_', '').replace('.db', '')
-                dt = datetime.strptime(ts, '%Y%m%d_%H%M%S')
-                date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-            except:
-                date_str = 'Unknown'
-            
-            click.echo(f'{backup}  |  {size/1024:.2f} KB  |  {date_str}')
-        
-        click.echo('-' * 60)
-        click.echo(f'Total: {len(backups)} backups, {total_size/1024:.2f} KB')
-        return 0
+
     
-    @app.cli.command('restore-db')
+@app.cli.command('mysql-restore')
     @click.argument('backup_file')
-    @click.option('--force', is_flag=True, help='Restore without confirmation')
-    def restore_db(backup_file, force):
-        """Restore database from a backup file.
+    @click.option('--force', is_flag=True)
+    def mysql_restore(backup_file, force):
+        """Reminder: MySQL restore uses mysql CLI (SQLite disabled).
         
-        Usage:
-            flask restore-db falco_backup_20241223_120000.db
-            flask restore-db /path/to/backup.db --force
-        """
-        # Get the database URI
-        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        
-        if not db_uri.startswith('sqlite:///'):
-            click.echo('Error: Restore command only works with SQLite databases')
-            return 1
-        
-        # Extract the database path
-        if db_uri.startswith('sqlite:////'):
-            db_path = db_uri[10:]
-        else:
-            db_path = db_uri[10:]
-            if not os.path.isabs(db_path):
-                db_path = os.path.join(current_app.instance_path, db_path)
-        
-        # Find the backup file
-        if not os.path.isabs(backup_file):
-            backend_dir = os.path.dirname(current_app.instance_path)
-            backup_path = os.path.join(backend_dir, 'backups', backup_file)
-        else:
-            backup_path = backup_file
-        
-        if not os.path.exists(backup_path):
-            click.echo(f'Error: Backup file not found: {backup_path}')
-            return 1
-        
-        if not force:
-            click.echo(f'⚠️  Warning: This will replace the current database!')
-            click.echo(f'   Current DB: {db_path}')
-            click.echo(f'   Backup: {backup_path}')
-            if not click.confirm('Are you sure you want to continue?'):
-                click.echo('Restore cancelled.')
-                return 0
-        
-        try:
-            # Create a backup of current DB before restore
-            if os.path.exists(db_path):
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                pre_restore_backup = f'{db_path}.pre_restore_{timestamp}'
-                shutil.copy2(db_path, pre_restore_backup)
-                click.echo(f'📁 Created pre-restore backup: {pre_restore_backup}')
-            
-            # Restore the backup
-            shutil.copy2(backup_path, db_path)
-            click.echo(f'✅ Database restored successfully from: {backup_path}')
-            return 0
-            
-        except Exception as e:
-            click.echo(f'Error restoring database: {str(e)}')
-            return 1
-    
-    @app.cli.command('cleanup-backups')
-    @click.option('--keep', default=10, help='Number of recent backups to keep')
-    @click.option('--backup-dir', default='backups', help='Directory containing backups')
-    @click.option('--force', is_flag=True, help='Delete without confirmation')
-    def cleanup_backups(keep, backup_dir, force):
-        """Remove old backups, keeping only the most recent ones.
-        
-        Usage:
-            flask cleanup-backups --keep 5
-            flask cleanup-backups --keep 10 --force
-        """
-        if not os.path.isabs(backup_dir):
-            backend_dir = os.path.dirname(current_app.instance_path)
-            backup_dir = os.path.join(backend_dir, backup_dir)
-        
-        if not os.path.exists(backup_dir):
-            click.echo('No backup directory found.')
-            return 0
-        
-        backups = sorted([
-            f for f in os.listdir(backup_dir) 
-            if f.startswith('falco_backup_') and f.endswith('.db')
-        ])
-        
-        if len(backups) <= keep:
-            click.echo(f'Only {len(backups)} backups exist. Nothing to clean up.')
-            return 0
-        
-        to_delete = backups[:-keep]
-        
-        if not force:
-            click.echo(f'Will delete {len(to_delete)} old backups, keeping {keep} most recent:')
-            for backup in to_delete:
-                click.echo(f'  - {backup}')
-            if not click.confirm('Continue?'):
-                click.echo('Cleanup cancelled.')
-                return 0
-        
-        deleted = 0
-        for backup in to_delete:
-            try:
-                os.remove(os.path.join(backup_dir, backup))
-                deleted += 1
-            except Exception as e:
-                click.echo(f'Error deleting {backup}: {e}')
-        
-        click.echo(f'✅ Deleted {deleted} old backups.')
+        Usage: mysql -u falco -pfalco_secret Graduation < backup.sql
+        \"\"\"
+        click.echo('Use mysql CLI for restore:')
+        click.echo('mysql -u falco -pfalco_secret Graduation < ' + backup_file)
         return 0
+
+    
+
     
     @app.cli.command('add-indexes')
     def add_indexes():
