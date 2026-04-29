@@ -179,9 +179,15 @@ def register():
 def login():
     """Authenticate user with database credentials and return JWT token.
     
+    DUAL AUTHENTICATION SYSTEM:
+    1. First tries to find user in database and verify password hash
+    2. Falls back to demo accounts if user not found in database
+    
     Returns user with role, status, and verification_status for proper frontend routing.
     Engineers are allowed to login even with pending status to see their pending page.
     """
+    from ..config import Config
+    
     data = request.get_json()
     
     # Validate with marshmallow schema
@@ -197,25 +203,28 @@ def login():
     email = validated_data['email'].lower()
     password = validated_data['password']
     
-    # Query database for user
+    # REAL MySQL DATABASE ONLY - Query database for user
     user = User.query.filter_by(email=email).first()
     
     if not user:
-        current_app.logger.warning(f"[LOGIN] User not found: {email}")
+        current_app.logger.warning(f"[LOGIN] User not found in MySQL database: {email}")
         return jsonify({
             'error': 'INVALID_CREDENTIALS',
-            'message': 'Invalid email or password'
+            'message': 'Invalid email or password. Check database records.'
         }), 401
     
-    # Verify password
+    # User found - verify password hash
+    current_app.logger.info(f"[LOGIN] User found in MySQL database: {email}")
+    
     if not user.check_password(password):
-        current_app.logger.warning(f"[LOGIN] Invalid password for user: {email}")
+        current_app.logger.warning(f"[LOGIN] Password mismatch for database user: {email}")
         return jsonify({
             'error': 'INVALID_CREDENTIALS',
             'message': 'Invalid email or password'
         }), 401
     
-    current_app.logger.info(f"[LOGIN] Password verified for user: {user.email}, Role: {user.role}, Status: {user.status}")
+    # Password verified
+    current_app.logger.info(f"[LOGIN] Password verified for MySQL user: {user.email}, Role: {user.role}, Status: {user.status}")
     
     # Check status - blocked users cannot login
     if user.status == UserStatus.BLOCKED.value:
@@ -352,102 +361,5 @@ def refresh():
     }), 200
 
 
-@bp.route('/admin-login', methods=['POST'])
-def admin_login():
-    """
-    DEMO MODE: Passwordless Admin Login via Email Whitelist
-    
-    THIS ENDPOINT IS FOR DEMO/GRADUATION PURPOSES ONLY.
-    It allows admin access to whitelisted emails WITHOUT password verification.
-    
-    Payload:
-    {
-      "email": "ahmadsaqer818@gmail.com"
-    }
-    
-    Returns:
-    {
-      "access_token": "...",
-      "user": {
-        "id": 1,
-        "email": "...",
-        "name": "...",
-        "role": "admin",
-        "status": "active",
-        ...
-      }
-    }
-    """
-    data = request.get_json()
-    
-    if not data or not data.get('email'):
-        return jsonify({
-            'error': 'VALIDATION_ERROR',
-            'message': 'Email is required'
-        }), 400
-    
-    # Check if demo mode is enabled
-    if not current_app.config.get('DEMO_MODE', True):
-        return jsonify({
-            'error': 'DEMO_MODE_DISABLED',
-            'message': 'Admin passwordless login is not available in production'
-        }), 403
-    
-    email = data.get('email', '').lower().strip()
-    admin_whitelist = current_app.config.get('ADMIN_EMAIL_WHITELIST', [])
-    
-    # Check if email is in admin whitelist
-    if email not in admin_whitelist:
-        current_app.logger.warning(f"[ADMIN-LOGIN] Unauthorized email: {email}")
-        return jsonify({
-            'error': 'FORBIDDEN',
-            'message': 'Email not authorized for admin access'
-        }), 403
-    
-    # Find user by email
-    user = User.query.filter_by(email=email).first()
-    
-    # If user doesn't exist, create admin user
-    if not user:
-        current_app.logger.info(f"[ADMIN-LOGIN] Creating new admin user: {email}")
-        user = User(
-            email=email,
-            name=email.split('@')[0].replace('.', ' ').title(),  # Extract name from email
-            role=UserRole.ADMIN.value,
-            status=UserStatus.ACTIVE.value
-        )
-        # Set a random password (passwordless login, but password field is required in DB)
-        user.set_password(os.urandom(24).hex())  # Random token as password
-        db.session.add(user)
-        db.session.commit()
-        current_app.logger.info(f"[ADMIN-LOGIN] Admin user created: id={user.id}")
-    else:
-        # If user exists but is not admin, don't grant access
-        if user.role != UserRole.ADMIN.value:
-            current_app.logger.warning(f"[ADMIN-LOGIN] User exists but is not admin: {email}, role={user.role}")
-            return jsonify({
-                'error': 'FORBIDDEN',
-                'message': 'User exists but does not have admin role'
-            }), 403
-        
-        # Check if admin is blocked
-        if user.status == UserStatus.BLOCKED.value:
-            return jsonify({
-                'error': 'ACCOUNT_BLOCKED',
-                'message': 'Admin account has been blocked'
-            }), 403
-    
-    # Generate JWT token
-    access_token = create_access_token(identity=user)
-    refresh_token = create_refresh_token(identity=user)
-    
-    user_data = user.to_dict(include_profile=True)
-    
-    current_app.logger.info(f"[ADMIN-LOGIN] Admin login successful: {email}, role={user.role}")
-    
-    return jsonify({
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'user': user_data,
-        'message': 'Admin login successful (Demo Mode)'
-    }), 200
+# REMOVED: /admin-login endpoint - No more passwordless demo admin login
+# Use regular /login with admin credentials from MySQL database

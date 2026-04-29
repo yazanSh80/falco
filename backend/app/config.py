@@ -52,49 +52,7 @@ class Config:
     # 
     # This allows both demo + real database users to work seamlessly.
     # Once a user registers in the database, their database password takes precedence.
-    DEMO_ACCOUNTS = {
-        # Customers
-        'customer@test.com': {
-            'password': 'Pass123!',
-            'role': 'customer',
-            'name': 'Test Customer',
-            'status': 'active',
-        },
-        # Engineers
-        'engineer@test.com': {
-            'password': 'Pass123!',
-            'role': 'engineer',
-            'name': 'Test Engineer',
-            'status': 'active',
-            'verification_status': 'approved',
-        },
-        'engineer.pending@test.com': {
-            'password': 'Pass123!',
-            'role': 'engineer',
-            'name': 'Pending Engineer',
-            'status': 'pending',
-            'verification_status': 'pending',
-        },
-        # Admins
-        'admin@test.com': {
-            'password': 'Pass123!',
-            'role': 'admin',
-            'name': 'Test Admin',
-            'status': 'active',
-        },
-        'admin@falco.local': {
-            'password': 'Admin@12345',
-            'role': 'admin',
-            'name': 'Super Admin',
-            'status': 'active',
-        },
-        'ahmadsaqer818@gmail.com': {
-            'password': 'saqer123',
-            'role': 'admin',
-            'name': 'Ahmad Saqer',
-            'status': 'active',
-        },
-    }
+
 
 
 class DevelopmentConfig(Config):
