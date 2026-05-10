@@ -1,0 +1,21 @@
+[35m.dockerignore[m[36m:[m# *.[1;31msqlite[m
+[35m.dockerignore[m[36m:[m# *.[1;31msqlite[m3
+[35m.gitignore[m[36m:[m# *.[1;31msqlite[m
+[35m.gitignore[m[36m:[m# *.[1;31msqlite[m3
+[35mDUAL_AUTH_VERIFICATION.md[m[36m:[m# Remove old database (if using [1;31mSQLite[m)
+[35mDUAL_AUTH_VERIFICATION.md[m[36m:[m# If using [1;31mSQLite[m:
+[35mDUAL_AUTH_VERIFICATION.md[m[36m:[m[1;31msqlite[m3 instance/falcoelectrec.db "SELECT email, role, status FROM users WHERE email LIKE '%test.com%';"
+[35mDUAL_AUTH_VERIFICATION.md[m[36m:[m# If using [1;31mSQLite[m:
+[35mDUAL_AUTH_VERIFICATION.md[m[36m:[m[1;31msqlite[m3 instance/falcoelectrec.db "SELECT email, LENGTH(password_hash) as hash_length, SUBSTR(password_hash, 1, 20) as hash_start FROM users LIMIT 3;"
+[35mMYSQL_MIGRATION_GUIDE.md[m[36m:[m# Falco Electrec - [1;31mSQLite[m to MySQL Migration Guide
+[35mMYSQL_MIGRATION_GUIDE.md[m[36m:[mYour Falco Electrec application has been configured to use MySQL instead of [1;31mSQLite[m.
+[35mMYSQL_MIGRATION_GUIDE.md[m[36m:[m- Previous [1;31mSQLite[m data **is not automatically migrated**
+[35mMYSQL_MIGRATION_GUIDE.md[m[36m:[m- If you need to migrate old [1;31mSQLite[m data, use a migration script
+[35mQUICKSTART_MYSQL.sh[m[36m:[m# Quick Start Guide - [1;31mSQLite[m to MySQL Migration
+[35mQUICKSTART_MYSQL.sh[m[36m:[mecho "║   Falco Electrec: [1;31mSQLite[m to MySQL Migration Complete       ║"
+[35mTODO.md[m[36m:[m- [x] Update backend/app/cli.py: Remove [1;31mSQLite[m backup/restore commands
+[35mTODO.md[m[36m:[m- [ ] Final search_files: No [1;31mSQLite[m/create_all remnants
+[35mbackend/app/cli.py[m[36m:[m        \"\"\"Reminder: Use mysqldump for MySQL backups ([1;31mSQLite[m commands disabled)
+[35mbackend/app/cli.py[m[36m:[m        # DEPRECATED: [1;31msqlite[m://// (MySQL only)
+[35mbackend/app/cli.py[m[36m:[m        """Reminder: MySQL restore uses mysql CLI ([1;31mSQLite[m disabled).
+[35mbackend/tests/debug_jwt.py[m[36m:[m    # 'SQLALCHEMY_DATABASE_URI': '[1;31msqlite[m:///:memory:',

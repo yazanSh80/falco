@@ -1,0 +1,81 @@
+# Docker Compose for Production
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: falco-db-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Root password required}
+      MYSQL_USER: ${MYSQL_USER:-falco}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Database password required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-falcoelectrec}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u${MYSQL_USER:-falco} -p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - falco-network
+
+  # Flask Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: falco-backend-prod
+    restart: unless-stopped
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=production
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-falco}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-falcoelectrec}
+      - SECRET_KEY=${SECRET_KEY:?Secret key required}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT secret key required}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}
+      - DEMO_MODE=${DEMO_MODE:-false}
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - falco-network
+
+  # React Frontend with Nginx
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: falco-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - falco-network
+
+volumes:
+  mysql_data:
+  backend_uploads:
+
+networks:
+  falco-network:
+    driver: bridge
